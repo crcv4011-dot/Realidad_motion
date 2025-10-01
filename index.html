@@ -1,0 +1,165 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Conveyor / Banda transportadora - A-Frame</title>
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  </head>
+  <body>
+    <a-scene background="color: #dfeff6">
+      <!-- Recursos -->
+      <a-assets>
+        <!-- Textura repetible para la banda (usa un recurso público) -->
+        <img id="beltTex" src="https://cdn.aframe.io/a-painter/images/floor.jpg" crossorigin="anonymous" />
+        <!-- Textura simple para cajas -->
+        <img id="boxTex" src="https://cdn.aframe.io/a-painter/images/floor.jpg" crossorigin="anonymous"/>
+      </a-assets>
+
+      <!-- Suelo -->
+      <a-plane rotation="-90 0 0" width="20" height="20" color="#8fbde6" position="0 0 -2"></a-plane>
+
+      <!-- Banda transportadora (la superficie) -->
+      <a-box id="belt" 
+             position="0 0.6 -3" 
+             depth="4" height="0.1" width="3.6"
+             material="src: #beltTex; repeat: 4 1.5; roughness: 1"
+             belt-move="speed: 0.02; rollSpeed: 4">
+      </a-box>
+
+      <!-- Rodillos (cilindros) a los extremos - se giran para simular movimiento -->
+      <a-cylinder id="roller-left" position="-1.6 0.55 -3" rotation="0 0 90" radius="0.12" height="0.36" color="#3b3b3b"></a-cylinder>
+      <a-cylinder id="roller-right" position="1.6 0.55 -3" rotation="0 0 90" radius="0.12" height="0.36" color="#3b3b3b"></a-cylinder>
+
+      <!-- Soportes opcionales -->
+      <a-box position="0 0.3 -3" width="3.8" height="0.4" depth="0.5" color="#666" material="opacity:0.2"></a-box>
+
+      <!-- Grupo donde aparecerán las cajas -->
+      <a-entity id="spawn-root" conveyor-spawn="speed: 0.9; spawnInterval: 1200; startX: -1.4; endX: 1.4; z:-3; y:0.85"></a-entity>
+
+      <!-- Cámara -->
+      <a-entity position="0 1.6 1.5">
+        <a-camera></a-camera>
+      </a-entity>
+
+      <!-- Scripts de comportamiento -->
+      <script>
+        // Component: belt-move
+        // - anima el offset de la textura para dar sensación de movimiento
+        // - rota los rodillos (si existen) en sentido acorde
+        AFRAME.registerComponent('belt-move', {
+          schema: {
+            speed: { type: 'number', default: 0.02 },    // velocidad de desplazamiento de la textura
+            rollSpeed: { type: 'number', default: 4 }    // velocidad de rotación de los rodillos
+          },
+          init: function () {
+            const el = this.el;
+            this.offset = 0;
+            // Referencia a textura (three.js)
+            this.mat = null;
+            el.addEventListener('materialtextureloaded', () => {
+              // cuando la textura esté lista la agarramos
+              const mesh = el.getObject3D('mesh');
+              if (mesh && mesh.material) {
+                // puede ser un array o single material
+                this.mat = mesh.material;
+                // aseguramos que la textura repita
+                if (this.mat.map) {
+                  this.mat.map.wrapS = THREE.RepeatWrapping;
+                  this.mat.map.wrapT = THREE.RepeatWrapping;
+                }
+              }
+            });
+
+            // buscar rodillos por id y guardarlos
+            this.leftRoller = document.querySelector('#roller-left');
+            this.rightRoller = document.querySelector('#roller-right');
+          },
+          tick: function (time, deltaTime) {
+            const dt = deltaTime / 1000;
+            // mover offset
+            if (this.mat && this.mat.map) {
+              this.offset -= this.data.speed * dt * 60; // escalar por fps
+              // solo en X
+              this.mat.map.offset.x = this.offset;
+              this.mat.map.needsUpdate = true;
+            }
+            // girar rodillos
+            const angle = this.data.rollSpeed * (deltaTime / 1000) * 2 * Math.PI;
+            if (this.leftRoller) {
+              this.leftRoller.object3D.rotation.x -= angle;
+            }
+            if (this.rightRoller) {
+              this.rightRoller.object3D.rotation.x -= angle;
+            }
+          }
+        });
+
+        // Component: conveyor-spawn
+        // - instancia cajas y las mueve sobre la banda desde startX hasta endX
+        // - las reubica al inicio cuando pasan el final (loop)
+        AFRAME.registerComponent('conveyor-spawn', {
+          schema: {
+            speed: { type: 'number', default: 0.8 },         // velocidad lineal (unidades por segundo)
+            spawnInterval: { type: 'int', default: 1000 },   // cada cuántos ms aparecerá una nueva caja
+            startX: { type: 'number', default: -1.4 },       // x inicial de la caja (lado izquierdo)
+            endX: { type: 'number', default: 1.4 },          // x final donde se reinicia
+            z: { type: 'number', default: -3 },              // coordenada z (banda)
+            y: { type: 'number', default: 0.85 }             // altura sobre la banda
+          },
+          init: function () {
+            this.boxes = [];
+            this.lastSpawn = 0;
+            this.spawnTimer = null;
+            this.scene = this.el.sceneEl;
+            // spawn inicial (varias cajas para efecto)
+            this._spawnBox();
+            this._spawnBox(0.6);
+            // activamos spawn periódico
+            this.spawnTimer = setInterval(() => this._spawnBox(), this.data.spawnInterval);
+          },
+          remove: function () {
+            if (this.spawnTimer) clearInterval(this.spawnTimer);
+          },
+          _spawnBox: function (delay = 0) {
+            const d = this.data;
+            // crear entidad caja
+            const box = document.createElement('a-box');
+            box.setAttribute('width', 0.35);
+            box.setAttribute('height', 0.25);
+            box.setAttribute('depth', 0.35);
+            box.setAttribute('position', `${d.startX} ${d.y} ${d.z}`);
+            box.setAttribute('material', 'src: #boxTex; repeat: 1 1; metalness:0.1');
+            // ligeramente aleatorio para variedad
+            const rot = (Math.random() - 0.5) * 10;
+            box.object3D.rotation.y = THREE.Math.degToRad(rot);
+            this.scene.appendChild(box);
+            this.boxes.push(box);
+          },
+          tick: function (time, deltaTime) {
+            const dt = deltaTime / 1000;
+            const move = this.data.speed * dt;
+            const endX = this.data.endX;
+            const startX = this.data.startX;
+
+            for (let i = 0; i < this.boxes.length; i++) {
+              const b = this.boxes[i];
+              if (!b.parentNode) continue;
+              const pos = b.getAttribute('position');
+              pos.x += move;
+              // si sobrepasa el extremo, reiniciamos al inicio
+              if (pos.x > endX + 0.15) {
+                pos.x = startX - 0.1;
+                // opcional: pequeño cambio en z o rotación
+                b.object3D.rotation.y += (Math.random() - 0.5) * 0.5;
+              }
+              b.setAttribute('position', pos);
+            }
+          }
+        });
+
+        // Nota: si quieres eliminar/limpiar cajas manualmente, puedes hacerlo desde la consola:
+        // document.querySelectorAll('[conveyor-box]').forEach(b=>b.remove())
+      </script>
+    </a-scene>
+  </body>
+</html>
