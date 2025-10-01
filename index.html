@@ -9,6 +9,7 @@
     <a-scene background="color: #dfeff6">
       <!-- Recursos -->
       <a-assets>
+        <!-- Textura repetible para la banda (usa un recurso público) -->
         <img id="beltTex" src="https://cdn.aframe.io/a-painter/images/floor.jpg" crossorigin="anonymous" />
         <img id="boxTex" src="https://cdn.aframe.io/a-painter/images/floor.jpg" crossorigin="anonymous"/>
       </a-assets>
@@ -20,7 +21,7 @@
       <a-box id="belt" 
              position="0 0.6 -3" 
              depth="4" height="0.1" width="3.6"
-             color="#4b9df3"  <!-- Color sólido en lugar de textura -->
+             material="src: #beltTex; repeat: 4 1.5; roughness: 1"
              belt-move="speed: 0.02; rollSpeed: 4">
       </a-box>
 
@@ -44,8 +45,8 @@
           init: function () {
             const el = this.el;
             this.offset = 0;
-            // Verifica si la textura se está cargando
             this.mat = null;
+            // Cuando la textura esté lista, la aplica
             el.addEventListener('materialtextureloaded', () => {
               const mesh = el.getObject3D('mesh');
               if (mesh && mesh.material) {
@@ -57,18 +58,20 @@
               }
             });
 
-            // Rodillos
+            // Buscar rodillos por ID y guardarlos
             this.leftRoller = document.querySelector('#roller-left');
             this.rightRoller = document.querySelector('#roller-right');
           },
           tick: function (time, deltaTime) {
             const dt = deltaTime / 1000;
+            // Mover la textura (con su respectiva velocidad)
             if (this.mat && this.mat.map) {
-              this.offset -= this.data.speed * dt * 60;
+              this.offset -= this.data.speed * dt * 60; // Escalar por fps
               this.mat.map.offset.x = this.offset;
               this.mat.map.needsUpdate = true;
             }
 
+            // Girar los rodillos
             const angle = this.data.rollSpeed * (deltaTime / 1000) * 2 * Math.PI;
             if (this.leftRoller) this.leftRoller.object3D.rotation.x -= angle;
             if (this.rightRoller) this.rightRoller.object3D.rotation.x -= angle;
@@ -90,6 +93,48 @@
             this.lastSpawn = 0;
             this.spawnTimer = null;
             this.scene = this.el.sceneEl;
+            // Spawneo inicial (varias cajas para efecto)
             this._spawnBox();
             this._spawnBox(0.6);
+            // Activamos spawn periódico
             this.spawnTimer = setInterval(() => this._spawnBox(), this.data.spawnInterval);
+          },
+          remove: function () {
+            if (this.spawnTimer) clearInterval(this.spawnTimer);
+          },
+          _spawnBox: function (delay = 0) {
+            const d = this.data;
+            const box = document.createElement('a-box');
+            box.setAttribute('width', 0.35);
+            box.setAttribute('height', 0.25);
+            box.setAttribute('depth', 0.35);
+            box.setAttribute('position', `${d.startX} ${d.y} ${d.z}`);
+            box.setAttribute('material', 'src: #boxTex; repeat: 1 1; metalness:0.1');
+            const rot = (Math.random() - 0.5) * 10;
+            box.object3D.rotation.y = THREE.Math.degToRad(rot);
+            this.scene.appendChild(box);
+            this.boxes.push(box);
+          },
+          tick: function (time, deltaTime) {
+            const dt = deltaTime / 1000;
+            const move = this.data.speed * dt;
+            const endX = this.data.endX;
+            const startX = this.data.startX;
+
+            for (let i = 0; i < this.boxes.length; i++) {
+              const b = this.boxes[i];
+              if (!b.parentNode) continue;
+              const pos = b.getAttribute('position');
+              pos.x += move;
+              if (pos.x > endX + 0.15) {
+                pos.x = startX - 0.1;
+                b.object3D.rotation.y += (Math.random() - 0.5) * 0.5;
+              }
+              b.setAttribute('position', pos);
+            }
+          }
+        });
+      </script>
+    </a-scene>
+  </body>
+</html>
