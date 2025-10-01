@@ -6,10 +6,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.7.0/aframe.min.js"></script>
   </head>
   <body>
-    <a-scene background="color: #dfeff6">
-      <!-- Recursos -->
+    <a-scene background="color: #e0e0e0">
       <a-assets>
-        <!-- Textura repetible para la banda (usa un recurso público) -->
         <img id="beltTex" src="https://cdn.aframe.io/a-painter/images/floor.jpg" crossorigin="anonymous" />
         <img id="boxTex" src="https://cdn.aframe.io/a-painter/images/floor.jpg" crossorigin="anonymous"/>
       </a-assets>
@@ -17,7 +15,7 @@
       <!-- Suelo -->
       <a-plane rotation="-90 0 0" width="20" height="20" color="#8fbde6" position="0 0 -2"></a-plane>
 
-      <!-- Banda transportadora con color sólido para visibilidad -->
+      <!-- Banda transportadora -->
       <a-box id="belt" 
              position="0 0.6 -3" 
              depth="4" height="0.1" width="3.6"
@@ -30,23 +28,23 @@
       <a-cylinder id="roller-right" position="1.6 0.55 -3" rotation="0 0 90" radius="0.12" height="0.36" color="#3b3b3b"></a-cylinder>
 
       <!-- Cámara -->
-      <a-entity position="0 1.6 1.5">
+      <a-entity position="0 2 5">
         <a-camera></a-camera>
       </a-entity>
 
-      <!-- Scripts de comportamiento -->
+      <!-- Esfera de depuración -->
+      <a-sphere position="0 1.6 -5" radius="1" color="#FF0000"></a-sphere> <!-- Esfera para depuración -->
+
       <script>
-        // Componente para mover la banda
         AFRAME.registerComponent('belt-move', {
           schema: {
-            speed: { type: 'number', default: 0.02 },    // velocidad de desplazamiento de la textura
-            rollSpeed: { type: 'number', default: 4 }    // velocidad de rotación de los rodillos
+            speed: { type: 'number', default: 0.02 },
+            rollSpeed: { type: 'number', default: 4 }
           },
           init: function () {
             const el = this.el;
             this.offset = 0;
             this.mat = null;
-            // Cuando la textura esté lista, la aplica
             el.addEventListener('materialtextureloaded', () => {
               const mesh = el.getObject3D('mesh');
               if (mesh && mesh.material) {
@@ -57,28 +55,22 @@
                 }
               }
             });
-
-            // Buscar rodillos por ID y guardarlos
             this.leftRoller = document.querySelector('#roller-left');
             this.rightRoller = document.querySelector('#roller-right');
           },
           tick: function (time, deltaTime) {
             const dt = deltaTime / 1000;
-            // Mover la textura (con su respectiva velocidad)
             if (this.mat && this.mat.map) {
-              this.offset -= this.data.speed * dt * 60; // Escalar por fps
+              this.offset -= this.data.speed * dt * 60;
               this.mat.map.offset.x = this.offset;
               this.mat.map.needsUpdate = true;
             }
-
-            // Girar los rodillos
             const angle = this.data.rollSpeed * (deltaTime / 1000) * 2 * Math.PI;
             if (this.leftRoller) this.leftRoller.object3D.rotation.x -= angle;
             if (this.rightRoller) this.rightRoller.object3D.rotation.x -= angle;
           }
         });
 
-        // Componente para generar las cajas en la banda
         AFRAME.registerComponent('conveyor-spawn', {
           schema: {
             speed: { type: 'number', default: 0.8 },
@@ -90,13 +82,10 @@
           },
           init: function () {
             this.boxes = [];
-            this.lastSpawn = 0;
             this.spawnTimer = null;
             this.scene = this.el.sceneEl;
-            // Spawneo inicial (varias cajas para efecto)
             this._spawnBox();
             this._spawnBox(0.6);
-            // Activamos spawn periódico
             this.spawnTimer = setInterval(() => this._spawnBox(), this.data.spawnInterval);
           },
           remove: function () {
@@ -110,8 +99,6 @@
             box.setAttribute('depth', 0.35);
             box.setAttribute('position', `${d.startX} ${d.y} ${d.z}`);
             box.setAttribute('material', 'src: #boxTex; repeat: 1 1; metalness:0.1');
-            const rot = (Math.random() - 0.5) * 10;
-            box.object3D.rotation.y = THREE.Math.degToRad(rot);
             this.scene.appendChild(box);
             this.boxes.push(box);
           },
@@ -120,7 +107,6 @@
             const move = this.data.speed * dt;
             const endX = this.data.endX;
             const startX = this.data.startX;
-
             for (let i = 0; i < this.boxes.length; i++) {
               const b = this.boxes[i];
               if (!b.parentNode) continue;
