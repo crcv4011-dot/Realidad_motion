@@ -1,133 +1,47 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Conveyor / Banda transportadora - A-Frame</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.7.0/aframe.min.js"></script>
-  </head>
-  <body>
-    <a-scene background="color: #e0e0e0">
-      <a-assets>
-        <!-- Textura repetible para la banda -->
-        <img id="beltTex" src="https://cdn.aframe.io/a-painter/images/floor.jpg" crossorigin="anonymous" />
-        <img id="boxTex" src="https://cdn.aframe.io/a-painter/images/floor.jpg" crossorigin="anonymous"/>
-      </a-assets>
+<!-- Copyright 2023 The MediaPipe Authors.
 
-      <!-- Suelo -->
-      <a-plane rotation="-90 0 0" width="20" height="20" color="#8fbde6" position="0 0 -2"></a-plane>
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-      <!-- Base de la banda (levanta la banda transportadora) -->
-      <a-box id="base" 
-             position="0 0.4 -3" 
-             depth="4" height="0.2" width="3.6"
-             color="#8b8b8b">
-      </a-box>
+     http://www.apache.org/licenses/LICENSE-2.0
 
-      <!-- Banda transportadora elevada -->
-      <a-box id="belt" 
-             position="0 0.6 -3"  <!-- Banda elevada a más altura -->
-             depth="4" height="0.1" width="3.6"
-             material="src: #beltTex; repeat: 4 1.5; roughness: 1"
-             belt-move="speed: 0.02; rollSpeed: 4">
-      </a-box>
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+<link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
+<script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+</script>
 
-      <!-- Rodillos -->
-      <a-cylinder id="roller-left" position="-1.6 0.55 -3" rotation="0 0 90" radius="0.12" height="0.36" color="#3b3b3b"></a-cylinder>
-      <a-cylinder id="roller-right" position="1.6 0.55 -3" rotation="0 0 90" radius="0.12" height="0.36" color="#3b3b3b"></a-cylinder>
+<body>
+  <h1>Pose detection using the MediaPipe PoseLandmarker task</h1>
 
-      <!-- Cámara -->
-      <a-entity position="0 2 5">
-        <a-camera></a-camera>
-      </a-entity>
+  <section id="demos" class="invisible">
+    <h2>Demo: Detecting Images</h2>
+    <p><b>Click on an image below</b> to see the key landmarks of the body.</p>
 
-      <script>
-        // Componente para mover la banda
-        AFRAME.registerComponent('belt-move', {
-          schema: {
-            speed: { type: 'number', default: 0.02 },
-            rollSpeed: { type: 'number', default: 4 }
-          },
-          init: function () {
-            const el = this.el;
-            this.offset = 0;
-            this.mat = null;
-            el.addEventListener('materialtextureloaded', () => {
-              const mesh = el.getObject3D('mesh');
-              if (mesh && mesh.material) {
-                this.mat = mesh.material;
-                if (this.mat.map) {
-                  this.mat.map.wrapS = THREE.RepeatWrapping;
-                  this.mat.map.wrapT = THREE.RepeatWrapping;
-                }
-              }
-            });
-            this.leftRoller = document.querySelector('#roller-left');
-            this.rightRoller = document.querySelector('#roller-right');
-          },
-          tick: function (time, deltaTime) {
-            const dt = deltaTime / 1000;
-            if (this.mat && this.mat.map) {
-              this.offset -= this.data.speed * dt * 60;
-              this.mat.map.offset.x = this.offset;
-              this.mat.map.needsUpdate = true;
-            }
-            const angle = this.data.rollSpeed * (deltaTime / 1000) * 2 * Math.PI;
-            if (this.leftRoller) this.leftRoller.object3D.rotation.x -= angle;
-            if (this.rightRoller) this.rightRoller.object3D.rotation.x -= angle;
-          }
-        });
+    <div class="detectOnClick">
+      <!-- source: https://pixabay.com/photos/woman-asia-beautiful-cambodia-1822514/ -->
+      <img src="https://assets.codepen.io/9177687/woman-ge0f199f92_640.jpg" width="100%" crossorigin="anonymous" title="Click to get detection!" />
+    </div>
+    <div class="detectOnClick">
+      <!-- source: https://pixabay.com/photos/woman-relaxation-portrait-3053489/ -->
+      <img src="https://assets.codepen.io/9177687/woman-g1af8d3deb_640.jpg" width="100%" crossorigin="anonymous" title="Click to get detection!" />
+    </div>
 
-        // Componente para generar las cajas en la banda
-        AFRAME.registerComponent('conveyor-spawn', {
-          schema: {
-            speed: { type: 'number', default: 0.8 },
-            spawnInterval: { type: 'int', default: 1000 },
-            startX: { type: 'number', default: -1.4 },
-            endX: { type: 'number', default: 1.4 },
-            z: { type: 'number', default: -3 },
-            y: { type: 'number', default: 0.85 }
-          },
-          init: function () {
-            this.boxes = [];
-            this.spawnTimer = null;
-            this.scene = this.el.sceneEl;
-            this._spawnBox();
-            this._spawnBox(0.6);
-            this.spawnTimer = setInterval(() => this._spawnBox(), this.data.spawnInterval);
-          },
-          remove: function () {
-            if (this.spawnTimer) clearInterval(this.spawnTimer);
-          },
-          _spawnBox: function (delay = 0) {
-            const d = this.data;
-            const box = document.createElement('a-box');
-            box.setAttribute('width', 0.35);
-            box.setAttribute('height', 0.25);
-            box.setAttribute('depth', 0.35);
-            box.setAttribute('position', `${d.startX} ${d.y} ${d.z}`);
-            box.setAttribute('material', 'src: #boxTex; repeat: 1 1; metalness:0.1');
-            this.scene.appendChild(box);
-            this.boxes.push(box);
-          },
-          tick: function (time, deltaTime) {
-            const dt = deltaTime / 1000;
-            const move = this.data.speed * dt;
-            const endX = this.data.endX;
-            const startX = this.data.startX;
-            for (let i = 0; i < this.boxes.length; i++) {
-              const b = this.boxes[i];
-              if (!b.parentNode) continue;
-              const pos = b.getAttribute('position');
-              pos.x += move;
-              if (pos.x > endX + 0.15) {
-                pos.x = startX - 0.1;
-                b.object3D.rotation.y += (Math.random() - 0.5) * 0.5;
-              }
-              b.setAttribute('position', pos);
-            }
-          }
-        });
-      </script>
-    </a-scene>
-  </body>
-</html>
+    <h2>Demo: Webcam continuous pose landmarks detection</h2>
+    <p>Stand in front of your webcam to get real-time pose landmarker detection.</br>Click <b>enable webcam</b> below and grant access to the webcam if prompted.</p>
+
+    <div id="liveView" class="videoView">
+      <button id="webcamButton" class="mdc-button mdc-button--raised">
+        <span class="mdc-button__ripple"></span>
+        <span class="mdc-button__label">ENABLE WEBCAM</span>
+      </button>
+      <div style="position: relative;">
+        <video id="webcam" style="width: 1280px; height: 720px; position: abso" autoplay playsinline></video>
+        <canvas class="output_canvas" id="output_canvas" width="1280" height="720" style="position: absolute; left: 0px; top: 0px;"></canvas>
+      </div>
+    </div>
+  </section>
